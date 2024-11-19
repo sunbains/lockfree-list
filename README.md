@@ -167,7 +167,7 @@ The implementation includes TLA+ specifications for formal verification of the c
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the Apache v2.0 license- see the LICENSE file for details.
 
 ## Credits
 
@@ -190,7 +190,7 @@ If you use this implementation in your research, please cite:
 
 ## Contact
 
-Your Name - [@yourusername](https://twitter.com/yourusername)
+Your Name - [@sunbains](https://twitter.com/sunbains)
 
-Project Link: [https://github.com/yourusername/lockfree-list](https://github.com/yourusername/lockfree-list)
+Project Link: [https://github.com/sunbains/lockfree-list](https://github.com/sunbains/lockfree-list)
 
