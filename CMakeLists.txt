@@ -77,3 +77,30 @@ target_link_libraries(lockfreelist_bench
     benchmark::benchmark
 )
 
+add_executable(iterator_bench
+  bench/iterator_bench.cc
+)
+
+target_include_directories(iterator_bench
+  PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(iterator_bench
+  PRIVATE
+    lockfreelist
+    benchmark::benchmark
+)
+
+target_include_directories(iterator_bench
+  PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${gtest_SOURCE_DIR}/include
+)
+
+add_executable(mt examples/mt.cc)
+
+target_include_directories(mt
+  PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
