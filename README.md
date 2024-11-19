@@ -118,9 +118,7 @@ Performance benchmarks showing operations/second under different scenarios:
 
 ### Memory Management
 
-- Hazard pointer-based reclamation
-- Thread-safe memory management
-- Automatic cleanup of retired nodes
+- The user is responsible for deleting the node that is removed from the list.
 
 ## Implementation Details
 
