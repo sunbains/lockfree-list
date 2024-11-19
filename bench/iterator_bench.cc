@@ -237,10 +237,11 @@ static void BM_IteratorVsPointer(benchmark::State& state) {
         // Direct pointer traversal
         for (auto _ : state) {
             int sum = 0;
-            auto* current = list.m_head.load(std::memory_order_acquire);
-            while (current) {
-                benchmark::DoNotOptimize(sum += static_cast<TimestampNode*>(current)->m_value);
-                current = current->m_next.load(std::memory_order_acquire);
+            auto current = list.m_head.load(std::memory_order_acquire);
+
+            while (current != nullptr) {
+                benchmark::DoNotOptimize(sum += static_cast<TimestampNode*>((Node*)current)->m_value);
+                current = ((Node*)current)->m_next.load(std::memory_order_acquire);
             }
             benchmark::ClobberMemory();
         }

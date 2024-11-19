@@ -294,7 +294,7 @@ void remove(Node* node) {
 ## Safety Properties
 
 1. **No Lost Nodes**: All nodes are reachable from either the list or marked as removed
-2. **No ABA Problems**: Handled through proper memory ordering and atomics
+2. **No ABA Problems**: Uses the lower 4 bits, so some protection but it can overflow.
 3. **Memory Safety**: All operations maintain list integrity under concurrent access
 4. **Progress Guarantee**: Lock-free for all operations
 

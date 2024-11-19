@@ -38,8 +38,8 @@ TEST_F(LockFreeListTest, PushFrontSingleElement) {
     
     auto head = list->m_head.load(std::memory_order_acquire);
     ASSERT_NE(head, nullptr);
-    EXPECT_EQ(static_cast<DataNode*>(head)->m_value, 42);
-    EXPECT_EQ(head->m_next.load(), nullptr);
+    EXPECT_EQ(static_cast<DataNode*>((Node*)head)->m_value, 42);
+    EXPECT_EQ(((Node*)head)->m_next.load(), nullptr);
 }
 
 TEST_F(LockFreeListTest, PushFrontMultipleElements) {
@@ -51,8 +51,8 @@ TEST_F(LockFreeListTest, PushFrontMultipleElements) {
     std::vector<int> actual;
     auto current = list->m_head.load(std::memory_order_acquire);
     while (current) {
-        actual.push_back(static_cast<DataNode*>(current)->m_value);
-        current = current->m_next.load(std::memory_order_acquire);
+        actual.push_back(static_cast<DataNode*>((Node*)current)->m_value);
+        current = ((Node*)current)->m_next.load(std::memory_order_acquire);
     }
     
     std::vector<int> expected = {5, 4, 3, 2, 1};
@@ -73,8 +73,8 @@ TEST_F(LockFreeListTest, RemoveMiddleNode) {
     std::vector<int> actual;
     auto current = list->m_head.load(std::memory_order_acquire);
     while (current) {
-        actual.push_back(static_cast<DataNode*>(current)->m_value);
-        current = current->m_next.load(std::memory_order_acquire);
+        actual.push_back(static_cast<DataNode*>((Node*)current)->m_value);
+        current = ((Node*)current)->m_next.load(std::memory_order_acquire);
     }
     
     std::vector<int> expected = {3, 1};
@@ -104,8 +104,8 @@ TEST_F(LockFreeListTest, ConcurrentPushFront) {
     std::vector<int> actual;
     auto current = list->m_head.load(std::memory_order_acquire);
     while (current) {
-        actual.push_back(static_cast<DataNode*>(current)->m_value);
-        current = current->m_next.load(std::memory_order_acquire);
+        actual.push_back(static_cast<DataNode*>((Node*)current)->m_value);
+        current = ((Node*)current)->m_next.load(std::memory_order_acquire);
     }
     
     EXPECT_EQ(actual.size(), NUM_THREADS * ITEMS_PER_THREAD);
@@ -158,11 +158,11 @@ TEST_F(LockFreeListTest, ConcurrentPushAndRemove) {
     // Verify list integrity
     auto current = list->m_head.load(std::memory_order_acquire);
     while (current) {
-        EXPECT_NE(current->m_next.load(std::memory_order_acquire), current);
-        if (auto next = current->m_next.load(std::memory_order_acquire)) {
-            EXPECT_EQ(next->m_prev.load(std::memory_order_acquire), current);
+        EXPECT_NE(((Node*)current)->m_next.load(std::memory_order_acquire), current);
+        if (auto next = ((Node*)current)->m_next.load(std::memory_order_acquire)) {
+            EXPECT_EQ(((Node*)next)->m_prev.load(std::memory_order_acquire), current);
         }
-        current = current->m_next.load(std::memory_order_acquire);
+        current = ((Node*)current)->m_next.load(std::memory_order_acquire);
     }
 }
 
@@ -172,8 +172,8 @@ TEST_F(LockFreeListTest, PushBackSingleElement) {
     
     auto tail = list->m_tail.load(std::memory_order_acquire);
     ASSERT_NE(tail, nullptr);
-    EXPECT_EQ(static_cast<DataNode*>(tail)->m_value, 42);
-    EXPECT_EQ(tail->m_next.load(), nullptr);
+    EXPECT_EQ(static_cast<DataNode*>((Node*)tail)->m_value, 42);
+    EXPECT_EQ(((Node*)tail)->m_next.load(), nullptr);
 }
 
 TEST_F(LockFreeListTest, PushBackMultipleElements) {
@@ -185,8 +185,8 @@ TEST_F(LockFreeListTest, PushBackMultipleElements) {
     std::vector<int> actual;
     auto current = list->m_head.load(std::memory_order_acquire);
     while (current) {
-        actual.push_back(static_cast<DataNode*>(current)->m_value);
-        current = current->m_next.load(std::memory_order_acquire);
+        actual.push_back(static_cast<DataNode*>((Node*)current)->m_value);
+        current = ((Node*)current)->m_next.load(std::memory_order_acquire);
     }
     
     EXPECT_EQ(actual, values);
@@ -203,7 +203,7 @@ TEST_F(LockFreeListTest, FindExistingValue) {
     
     auto found = list->find(2);
     ASSERT_NE(found, nullptr);
-    EXPECT_EQ(static_cast<DataNode*>(found)->m_value, 2);
+    EXPECT_EQ(static_cast<DataNode*>((Node*)found)->m_value, 2);
 }
 
 TEST_F(LockFreeListTest, FindNonExistentValue) {
@@ -249,8 +249,8 @@ TEST_F(LockFreeListTest, InsertAfterMiddle) {
     std::vector<int> actual;
     auto current = list->m_head.load(std::memory_order_acquire);
     while (current) {
-        actual.push_back(static_cast<DataNode*>(current)->m_value);
-        current = current->m_next.load(std::memory_order_acquire);
+        actual.push_back(static_cast<DataNode*>((Node*)current)->m_value);
+        current = ((Node*)current)->m_next.load(std::memory_order_acquire);
     }
     
     EXPECT_EQ(actual, expected);
@@ -269,7 +269,7 @@ TEST_F(LockFreeListTest, InsertAfterTail) {
     
     auto tail = list->m_tail.load(std::memory_order_acquire);
     ASSERT_NE(tail, nullptr);
-    EXPECT_EQ(static_cast<DataNode*>(tail)->m_value, 3);
+    EXPECT_EQ(static_cast<DataNode*>((Node*)tail)->m_value, 3);
 }
 
 TEST_F(LockFreeListTest, ConcurrentPushBackAndFront) {
@@ -298,8 +298,8 @@ TEST_F(LockFreeListTest, ConcurrentPushBackAndFront) {
     std::vector<int> actual;
     auto current = list->m_head.load(std::memory_order_acquire);
     while (current) {
-        actual.push_back(static_cast<DataNode*>(current)->m_value);
-        current = current->m_next.load(std::memory_order_acquire);
+        actual.push_back(static_cast<DataNode*>((Node*)current)->m_value);
+        current = ((Node*)current)->m_next.load(std::memory_order_acquire);
     }
     
     EXPECT_EQ(actual.size(), NUM_THREADS * ITEMS_PER_THREAD);
@@ -336,7 +336,7 @@ TEST_F(LockFreeListTest, ConcurrentInsertAfter) {
     auto current = list->m_head.load(std::memory_order_acquire);
     while (current) {
         actual_count++;
-        current = current->m_next.load(std::memory_order_acquire);
+        current = ((Node*)current)->m_next.load(std::memory_order_acquire);
     }
     
     EXPECT_EQ(actual_count, success_count.load() + 1);  // +1 for initial node

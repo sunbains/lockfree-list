@@ -7,27 +7,74 @@
 #include <thread>
 #include <cassert>
 
-#define DEBUG
-
 struct Node {
+
+  struct Tag {
+    const static uintptr_t version_mask = 0x4;
+    const static uintptr_t ptr_mask = 0xFFFFFFFFFFFFFFF0;
+
+    Tag() noexcept = default;
+
+    explicit Tag(uintptr_t ptr, uintptr_t version) noexcept
+      : m_ptr(ptr & ptr_mask) {
+      assert(version < (1u << 4) - 1);
+      m_ptr |= version;
+    }
+
+    explicit Tag(Node* ptr, uintptr_t version) noexcept
+      : Tag(reinterpret_cast<uintptr_t>(ptr), version) {}
+
+    bool operator==(const Tag& rhs) const noexcept {
+      return m_ptr == rhs.m_ptr;
+    }
+
+    operator Node*() const noexcept {
+      return reinterpret_cast<Node*>(m_ptr & ptr_mask);
+    }
+
+    uint32_t version() const {
+      return m_ptr & version_mask;
+    }
+
+    Tag next_version() const noexcept {
+      const auto v = version();
+      assert(v < (1u << 4) - 1);  
+
+      return Tag(m_ptr, v + 1);
+    }
+
+    uintptr_t m_ptr{};
+  };
+
+  static_assert(sizeof(Tag) == 8, "Tag must be 8 bytes");
+    
+  Node() = default;
+
   virtual ~Node() = default;
+
+  void init() {
+    Tag null_tag{};
+
+    m_next.store(null_tag, std::memory_order_relaxed);
+    m_prev.store(null_tag, std::memory_order_relaxed);
+  }
 
   void prefetch_next() const {
     /* Read, high temporal locality */
-    if (auto next = m_next.load(std::memory_order_acquire)) {
+    if (auto next = (Node*)(m_next.load(std::memory_order_acquire))) {
       __builtin_prefetch(next, 0, 3);
     }
   }
   
   void prefetch_prev() const {
     /* Read, high temporal locality */
-    if (auto prev = m_prev.load(std::memory_order_acquire)) {
+    if (auto prev = (Node*)m_prev.load(std::memory_order_acquire)) {
       __builtin_prefetch(prev, 0, 3);
     }
   }
 
-  std::atomic<Node*> m_next{};
-  std::atomic<Node*> m_prev{};
+  std::atomic<Tag> m_next{};
+  std::atomic<Tag> m_prev{};
 };
 
 template <typename T>
@@ -68,15 +115,15 @@ struct Lock_free_list {
       }
             
       /* Load next node with acquire semantics */
-      auto next = m_node->m_next.load(std::memory_order_acquire);
+      auto next = (Node*)m_node->m_next.load(std::memory_order_acquire);
             
       /* Verify the node hasn't been removed */
-      if (m_node->m_prev.load(std::memory_order_acquire) != m_prev) {
+      if ((Node*)m_node->m_prev.load(std::memory_order_acquire) != m_prev) {
         /* Node was removed, try to recover by finding next valid node */
-        while (m_node != nullptr && m_node->m_prev.load(std::memory_order_acquire) != m_prev) {
-          m_node = m_node->m_next.load(std::memory_order_acquire);
+        while (m_node != nullptr && (Node*)m_node->m_prev.load(std::memory_order_acquire) != m_prev) {
+          m_node = (Node*)m_node->m_next.load(std::memory_order_acquire);
           if (m_node != nullptr) {
-            m_prev = m_node->m_prev.load(std::memory_order_acquire);
+            m_prev = (Node*)m_node->m_prev.load(std::memory_order_acquire);
           }
         }
       } else {
@@ -100,15 +147,15 @@ struct Lock_free_list {
       }
             
       /* Load prev node with acquire semantics */
-      auto prev = m_prev->m_prev.load(std::memory_order_acquire);
+      auto prev = (Node*)m_prev->m_prev.load(std::memory_order_acquire);
             
       /* Verify the node hasn't been removed */
       if (m_prev->m_next.load(std::memory_order_acquire) != m_node) {
         /* Node was removed, try to recover by finding previous valid node */
-        while (m_prev != nullptr && m_prev->m_next.load(std::memory_order_acquire) != m_node) {
-          m_prev = m_prev->m_prev.load(std::memory_order_acquire);
+        while (m_prev != nullptr && (Node*)m_prev->m_next.load(std::memory_order_acquire) != m_node) {
+          m_prev = (Node*)m_prev->m_prev.load(std::memory_order_acquire);
           if (m_prev != nullptr) {
-            m_node = m_prev->m_next.load(std::memory_order_acquire);
+            m_node = (Node*)m_prev->m_next.load(std::memory_order_acquire);
           }
         }
       } else {
@@ -174,13 +221,13 @@ struct Lock_free_list {
         throw std::runtime_error("Incrementing null iterator");
       }
             
-      auto next = m_node->m_next.load(std::memory_order_acquire);
+      auto next = (Node*)m_node->m_next.load(std::memory_order_acquire);
             
-      if (m_node->m_prev.load(std::memory_order_acquire) != m_prev) {
-        while (m_node != nullptr && m_node->m_prev.load(std::memory_order_acquire) != m_prev) {
-          m_node = m_node->m_next.load(std::memory_order_acquire);
+      if ((Node*)m_node->m_prev.load(std::memory_order_acquire) != m_prev) {
+        while (m_node != nullptr && (Node*)m_node->m_prev.load(std::memory_order_acquire) != m_prev) {
+          m_node = (Node*)m_node->m_next.load(std::memory_order_acquire);
           if (m_node != nullptr) {
-            m_prev = m_node->m_prev.load(std::memory_order_acquire);
+            m_prev = (Node*)m_node->m_prev.load(std::memory_order_acquire);
           }
         }
       } else {
@@ -202,13 +249,13 @@ struct Lock_free_list {
         throw std::runtime_error("Decrementing begin iterator");
       }
             
-      auto prev = m_prev->m_prev.load(std::memory_order_acquire);
+      auto prev = (Node*)m_prev->m_prev.load(std::memory_order_acquire);
             
-      if (m_prev->m_next.load(std::memory_order_acquire) != m_node) {
-        while (m_prev && m_prev->m_next.load(std::memory_order_acquire) != m_node) {
-          m_prev = m_prev->m_prev.load(std::memory_order_acquire);
+      if ((Node*)m_prev->m_next.load(std::memory_order_acquire) != m_node) {
+        while (m_prev != nullptr && (Node*)m_prev->m_next.load(std::memory_order_acquire) != m_node) {
+          m_prev = (Node*)m_prev->m_prev.load(std::memory_order_acquire);
           if (m_prev != nullptr) {
-            m_node = m_prev->m_next.load(std::memory_order_acquire);
+            m_node = (Node*)m_prev->m_next.load(std::memory_order_acquire);
           }
         }
       } else {
@@ -238,8 +285,10 @@ struct Lock_free_list {
   };
     
   Lock_free_list() {
-    m_head.store(nullptr, std::memory_order_relaxed);
-    m_tail.store(nullptr, std::memory_order_relaxed);
+    Node::Tag null_tag{}; 
+
+    m_head.store(null_tag, std::memory_order_relaxed);
+    m_tail.store(null_tag, std::memory_order_relaxed);
   }
 
   ~Lock_free_list() {
@@ -249,29 +298,30 @@ struct Lock_free_list {
   /* Add a node to the front */
   void push_front(Node* node) {
     assert(node != nullptr);
+        
+    typename Node::Tag null_ptr{};
 
-    node->m_next.store(nullptr, std::memory_order_relaxed);
-    node->m_prev.store(nullptr, std::memory_order_relaxed);
-
-    /* Prefetch head node and its neighbors */
-    auto head = m_head.load(std::memory_order_acquire);
-
-    if (head != nullptr) {
-      /* Write, high temporal locality */
-      __builtin_prefetch(head, 1, 3);
-      head->prefetch_next();
-   }
-
+    node->init();
+        
     for (;;) {
       auto old_head = m_head.load(std::memory_order_acquire);
-
-      node->m_next.store(old_head, std::memory_order_relaxed);
-
-      if (m_head.compare_exchange_weak(old_head, node, std::memory_order_release, std::memory_order_relaxed)) {
+            
+      /* Setup new node's pointers */
+      node->m_next.store(typename Node::Tag{old_head.m_ptr, 0}, std::memory_order_relaxed);
+            
+      /* Try to set as new head with incremented version */
+      typename Node::Tag new_head{node, old_head.version() + 1};
+            
+      if (m_head.compare_exchange_weak(old_head, new_head, std::memory_order_release, std::memory_order_relaxed)) {
         if (old_head != nullptr) {
-          old_head->m_prev.store(node, std::memory_order_release);
+          /* Update old head's prev pointer */
+          auto old_prev = ((Node*) old_head)->m_prev.load(std::memory_order_acquire);
+          typename Node::Tag new_prev{node, old_prev.version() + 1};
+
+          ((Node*) old_head)->m_prev.store(new_prev, std::memory_order_release);
         } else {
-          m_tail.store(node, std::memory_order_release);
+          // Empty list case - update tail
+          m_tail.store(new_head, std::memory_order_release);
         }
         return;
       }
@@ -280,131 +330,146 @@ struct Lock_free_list {
 
   /* Remove a specific node */
   void remove(Node* node) {
-    /* Update the prev pointer */
-    auto prev = node->m_prev.load(std::memory_order_acquire);
-    auto next = node->m_next.load(std::memory_order_acquire);
+    for (;;) {
+      /* Load both links with their versions */
+      auto prev = node->m_prev.load(std::memory_order_acquire);
+      auto next = node->m_next.load(std::memory_order_acquire);
+            
+      Node *prev_ptr = prev;
+      Node *next_ptr = next;
+            
+      if (prev_ptr != nullptr) {
+        /* Read prev's current next pointer and version */
+        auto expected = ((Node*)prev)->m_next.load(std::memory_order_acquire);
 
-    /* Prefetch adjacent nodes */
-    if (prev != nullptr) {
-      __builtin_prefetch(prev, 1, 3);
-      prev->prefetch_next();
-    }
+        if (expected != node) {
+          /* Node already removed or list changed */
+          continue;
+        }
+                
+        /* Prepare new tagged pointer with incremented version */
+        Node::Tag new_tag{next_ptr, expected.version() + 1};
+                
+        /* Try to update with new version */
+        if (((Node*)prev)->m_next.compare_exchange_strong(expected, new_tag, std::memory_order_release, std::memory_order_relaxed)) {
+          /* Successfully unlinked from prev side */
+          if (next != nullptr) {
+            auto next_expected = ((Node*)next)->m_prev.load(std::memory_order_acquire);
+            /* Increment version */
+            Node::Tag next_new{prev_ptr, next_expected.version() + 1};
 
-    if (next != nullptr) {
-      __builtin_prefetch(next, 1, 3);
-      next->prefetch_prev();
-    }
+            ((Node*)next)->m_prev.compare_exchange_strong(next_expected, next_new, std::memory_order_release);
+          }
+          return;
+        }
+      } else {
+        /* Handle head case */
+        auto expected = m_head.load(std::memory_order_acquire);
 
-    if (prev != nullptr) {
-      /* Prefetch new head */
-      if (next != nullptr) {
-        __builtin_prefetch(next, 1, 3);
+        if (expected != node) {
+          continue;
+        }
+                
+        Node::Tag new_tag{next_ptr, expected.version() + 1};
+                
+        if (m_head.compare_exchange_strong(expected, new_tag, std::memory_order_release, std::memory_order_relaxed)) {
+          if (next_ptr != nullptr) {
+            auto next_expected = ((Node*)next)->m_prev.load(std::memory_order_acquire);
+            Node::Tag next_new{nullptr, next_expected.version() + 1};
+
+            ((Node*)next)->m_prev.compare_exchange_strong(next_expected, next_new, std::memory_order_release);
+          }
+          return;
+        }
       }
-
-      prev->m_next.store(next, std::memory_order_release);
-    } else {
-      /* Prefetch for potential subsequent operations */
-      if (auto new_head = m_head.load(std::memory_order_acquire)) {
-        __builtin_prefetch(new_head, 0, 3);
-      }
-      m_head.compare_exchange_strong(node, next, std::memory_order_release);
-    }
-
-    if (next != nullptr) {
-      next->m_prev.store(prev, std::memory_order_release);
-    } else {
-      m_tail.compare_exchange_strong(node, prev, std::memory_order_release);
     }
   }
 
   /* Add a node to the back */
   void push_back(Node* node) {
     assert(node != nullptr);
-    node->m_next.store(nullptr, std::memory_order_relaxed);
-    node->m_prev.store(nullptr, std::memory_order_relaxed);
-    
+
+    node->init();
+
+    typename Node::Tag null_tag{};
+        
     for (;;) {
       auto old_tail = m_tail.load(std::memory_order_acquire);
-
+            
       if (old_tail == nullptr) {
-        /* Empty list - try to set both head and tail */
-        if (m_head.load(std::memory_order_acquire) == nullptr) {
-          Node *null_node = nullptr;
+        /* Empty list case - try to set both head and tail */
+        auto old_head = m_head.load(std::memory_order_acquire);
 
-          node->m_next.store(nullptr, std::memory_order_relaxed);
-          if (m_head.compare_exchange_weak(null_node, node, std::memory_order_release, std::memory_order_relaxed)) {
-            m_tail.store(node, std::memory_order_release);
+        if (old_head == nullptr) {
+          typename Node::Tag new_tag{node, old_head.version() + 1};
+
+          if (m_head.compare_exchange_weak(old_head, new_tag, std::memory_order_release, std::memory_order_relaxed)) {
+            m_tail.store(new_tag, std::memory_order_release);
             return;
           }
         }
         continue;
       }
-        
-      /* Try to link after the current tail */
-      node->m_prev.store(old_tail, std::memory_order_relaxed);
-      old_tail->m_next.store(node, std::memory_order_release);
-      
-      /* Try to update tail */
-      if (m_tail.compare_exchange_weak(old_tail, node, std::memory_order_release, std::memory_order_relaxed)) {
-          return;
+            
+      /* Setup new node's prev pointer */
+      node->m_prev.store(typename Node::Tag{old_tail.m_ptr, 0}, std::memory_order_relaxed);
+            
+      /* Try to update old tail's next pointer */
+      auto old_next = ((Node*)old_tail)->m_next.load(std::memory_order_acquire);
+
+      /* Tail was incorrect */
+      if (old_next != nullptr) {
+        continue;
       }
-        
-      /* If CAS failed, someone else modified the tail */
-      /* Reset the next pointer of old_tail to avoid leaving dangling pointers */
-      old_tail->m_next.store(nullptr, std::memory_order_release);
-    }
+            
+      /* Prepare new tagged pointer with incremented version */
+      typename Node::Tag new_next{node, old_next.version() + 1};
+
+      if (((Node*)old_tail)->m_next.compare_exchange_weak(old_next, new_next, std::memory_order_release, std::memory_order_relaxed)) {
+        /* Update tail pointer */
+        typename Node::Tag new_tail{node, old_tail.version() + 1};
+
+        m_tail.compare_exchange_strong(old_tail, new_tail, std::memory_order_release, std::memory_order_relaxed);
+        return;
+      }
+    }    
   }
 
   /* Insert a node after a specific node */
   bool insert_after(Node* node, Node* new_node) {
     assert(node != nullptr);
     assert(new_node != nullptr);
-    
-    new_node->m_next.store(nullptr, std::memory_order_relaxed);
-    new_node->m_prev.store(nullptr, std::memory_order_relaxed);
-    
+        
+    typename Node::Tag null_ptr{};
+
+    new_node->init();
+        
     for (;;) {
-      /* Load the next node that follows our insertion point */
-      auto next = node->m_next.load(std::memory_order_acquire);
-        
-      /* Verify node is still in the list by checking its prev link */
-      auto prev_check = node->m_prev.load(std::memory_order_acquire);
+      auto next_tagged = node->m_next.load(std::memory_order_acquire);
 
-      if (prev_check != nullptr) {
-        if (prev_check->m_next.load(std::memory_order_acquire) != node) {
-          return false; // Node was removed from list
-        }
-      } else {
-        /* If node claims to be head, verify */
-        if (m_head.load(std::memory_order_acquire) != node) {
-          return false; // Node was removed from list
-        }
-      }
-        
-      /* Set up new node's links */
-      new_node->m_next.store(next, std::memory_order_relaxed);
-      new_node->m_prev.store(node, std::memory_order_relaxed);
-        
-      /* Try to link new_node after node */
-      if (node->m_next.compare_exchange_weak(next, new_node, std::memory_order_release, std::memory_order_relaxed)) {
-        /* Successfully linked new_node after node */
+      new_node->m_prev.store(typename Node::Tag{node, 0}, std::memory_order_relaxed);
+      new_node->m_next.store(typename Node::Tag{next_tagged.m_ptr, 0}, std::memory_order_relaxed);
             
-        if (next != nullptr) {
-          /* Update next node's prev pointer */
-          next->m_prev.store(new_node, std::memory_order_release);
-        } else {
-          /* new_node is the new tail */
-          Node* expected = node;
+      typename Node::Tag new_next{new_node, next_tagged.version() + 1};
 
-          if (!m_tail.compare_exchange_strong(expected, new_node, std::memory_order_release, std::memory_order_relaxed)) {
-            /* Tail update failed - someone else modified the list We need to retry */
-            continue;
+      if (node->m_next.compare_exchange_weak(next_tagged, new_next, std::memory_order_release, std::memory_order_relaxed)) {
+        if (next_tagged != nullptr) {
+          auto next_prev = ((Node*)next_tagged)->m_prev.load(std::memory_order_acquire);
+          typename Node::Tag new_prev{new_node, next_prev.version() + 1};
+
+          ((Node*)next_tagged)->m_prev.store(new_prev, std::memory_order_release);
+        } else {
+          /* New node becomes the tail */
+          auto old_tail = m_tail.load(std::memory_order_acquire);
+
+          if (old_tail == node) {
+            typename Node::Tag new_tail{new_node, old_tail.version() + 1};
+
+            m_tail.compare_exchange_strong(old_tail, new_tail, std::memory_order_release, std::memory_order_relaxed);
           }
         }
-            
         return true;
       }
-      /* If CAS failed, another thread modified the list, try again */
     }
   }
 
@@ -416,14 +481,14 @@ struct Lock_free_list {
         
       while (current != nullptr) {
         /* Check if current node matches predicate */
-        if (pred(static_cast<T*>(current))) {
+        if (pred(static_cast<T*>((Node*)current))) {
           /* Verify node is still in list by checking its links */
-          auto next = current->m_next.load(std::memory_order_acquire);
-          auto prev = current->m_prev.load(std::memory_order_acquire);
+          auto next = ((Node*)current)->m_next.load(std::memory_order_acquire);
+          auto prev = ((Node*)current)->m_prev.load(std::memory_order_acquire);
                 
           /* If node's next->prev points back to node, it's still valid */
           if (next != nullptr) {
-            if (next->m_prev.load(std::memory_order_acquire) != current) {
+            if (((Node*)next)->m_prev.load(std::memory_order_acquire) != current) {
               /* Node was removed, restart search */
               break;
             }
@@ -434,7 +499,7 @@ struct Lock_free_list {
                 
           /* If node's prev->next points to node, it's still valid */
           if (prev != nullptr) {
-            if (prev->m_next.load(std::memory_order_acquire) != current) {
+            if (((Node*)prev)->m_next.load(std::memory_order_acquire) != current) {
               /* Node was removed, restart search */
               break;
             }
@@ -445,7 +510,7 @@ struct Lock_free_list {
                 
           return current;
         }
-        current = current->m_next.load(std::memory_order_acquire);
+        current = ((Node*)current)->m_next.load(std::memory_order_acquire);
       }
         
       /* If we completed iteration without finding a match, return nullptr */
@@ -466,9 +531,11 @@ struct Lock_free_list {
 
   /* Clear the list */
   void clear() {
+    Node::Tag null_tag{}; 
+
     /* The containing node should be deleted by the list owne*/
-    m_head.store(nullptr, std::memory_order_relaxed);
-    m_tail.store(nullptr, std::memory_order_relaxed);
+    m_head.store(null_tag, std::memory_order_relaxed);
+    m_tail.store(null_tag, std::memory_order_relaxed);
   }
 
   iterator begin() noexcept {
@@ -476,23 +543,23 @@ struct Lock_free_list {
   }
     
   const_iterator begin() const noexcept {
-      return const_iterator(m_head.load(std::memory_order_acquire), nullptr);
+    return const_iterator(m_head.load(std::memory_order_acquire), nullptr);
   }
     
   const_iterator cbegin() const noexcept {
-      return const_iterator(m_head.load(std::memory_order_acquire), nullptr);
+    return const_iterator(m_head.load(std::memory_order_acquire), nullptr);
   }
   
   iterator end() noexcept {
-      return iterator(nullptr, m_tail.load(std::memory_order_acquire));
+    return iterator(nullptr, m_tail.load(std::memory_order_acquire));
   }
   
   const_iterator end() const noexcept {
-      return const_iterator(nullptr, m_tail.load(std::memory_order_acquire));
+    return const_iterator(nullptr, m_tail.load(std::memory_order_acquire));
   }
   
   const_iterator cend() const noexcept {
-      return const_iterator(nullptr, m_tail.load(std::memory_order_acquire));
+    return const_iterator(nullptr, m_tail.load(std::memory_order_acquire));
   }
   
   /* Print the list */
@@ -501,14 +568,14 @@ struct Lock_free_list {
 
     while (current != nullptr) {
       std::cout << static_cast<T*>(current)->m_value << " ";
-      current = current->m_next.load(std::memory_order_acquire);
+      current = ((Node*)current)->m_next.load(std::memory_order_acquire);
     }
 
     std::cout << std::endl;
   }
 
-  std::atomic<Node*> m_head{};
-  std::atomic<Node*> m_tail{};
+  std::atomic<Node::Tag> m_head{};
+  std::atomic<Node::Tag> m_tail{};
 
 };
 

@@ -125,7 +125,7 @@ Performance benchmarks showing operations/second under different scenarios:
 ### Lock-Free Mechanisms
 
 - Uses atomic operations for thread safety
-- ABA problem prevention
+- ABA problem prevention (using 4 bits from the pointer, so not 100% fool proof)
 - Memory ordering guarantees
 
 ### Cache Optimization
