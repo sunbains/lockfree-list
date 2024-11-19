@@ -7,7 +7,7 @@ A high-performance, thread-safe, lock-free doubly linked list implementation in 
 - **Lock-Free Operations**: All operations are lock-free, ensuring progress even under contention
 - **Thread Safety**: Safe concurrent access and modification from multiple threads
 - **STL-Compatible Iterators**: Bidirectional iterators that work with STL algorithms
-- **Memory Safety**: Hazard pointer-based memory management for safe memory reclamation
+- **Memory Safety**: Memory has to be reclaimed by the caller
 - **Cache-Friendly**: Optimized for modern CPU architectures with prefetching and cache-aware design
 - **Comprehensive Testing**: Extensive unit tests and benchmarks
 - **Formal Verification**: TLA+ specifications for core operations
@@ -125,7 +125,6 @@ Performance benchmarks showing operations/second under different scenarios:
 ### Lock-Free Mechanisms
 
 - Uses atomic operations for thread safety
-- Hazard pointers for safe memory reclamation
 - ABA problem prevention
 - Memory ordering guarantees
 
