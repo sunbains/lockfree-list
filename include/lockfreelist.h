@@ -7,11 +7,13 @@
 #include <thread>
 #include <cassert>
 
+namespace ut {
+
 struct Node {
 
   struct Tag {
-    const static uintptr_t version_mask = 0x4;
-    const static uintptr_t ptr_mask = 0xFFFFFFFFFFFFFFF0;
+    static constexpr uintptr_t version_mask = 0x4;
+    static constexpr uintptr_t ptr_mask = 0xFFFFFFFFFFFFFFF0;
 
     Tag() noexcept = default;
 
@@ -579,11 +581,4 @@ struct Lock_free_list {
 
 };
 
-struct DataNode : public Node {
-  using value_type = int;
-
-  explicit DataNode(int v)
-    : m_value(v) {}
-
-  value_type m_value;
-};
+} // namespace ut

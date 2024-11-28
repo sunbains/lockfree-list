@@ -1,8 +1,20 @@
 #pragma once
 
+#include <sstream>
+#include <iomanip>
+
 #include "lockfreelist.h"
 
-struct TimestampNode : public Node {
+struct DataNode : public ut::Node {
+  using value_type = int;
+
+  explicit DataNode(int v)
+    : m_value(v) {}
+
+  value_type m_value;
+};
+
+struct TimestampNode : public ut::Node {
     using value_type = int;
 
     using clock_type = std::chrono::steady_clock;

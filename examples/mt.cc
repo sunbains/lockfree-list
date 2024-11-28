@@ -9,17 +9,16 @@
 #include "lockfreelist.h"
 
 // Custom node with value and timestamp
-struct TimestampNode : public Node {
+struct TimestampNode : public ut::Node {
   using value_type = int;
 
-  std::chrono::steady_clock::time_point timestamp;
-  
   explicit TimestampNode(int v) 
       : m_value(v)
       , timestamp(std::chrono::steady_clock::now()) 
   {}
 
   value_type m_value;
+  std::chrono::steady_clock::time_point timestamp;
 };
 
 // Utility for thread-safe console output
@@ -33,13 +32,13 @@ struct ConsoleLogger {
 
 // Example 1: Concurrent insertion and scanning
 void concurrent_insert_scan_example() {
-  Lock_free_list<TimestampNode> list;
+  ut::Lock_free_list<TimestampNode> list;
   std::atomic<bool> stop_flag{false};
   std::atomic<int> total_insertions{0};
   std::atomic<int> total_scans{0};
   
   // Writer threads continuously insert nodes
-  auto writer_func = [&](int thread_id) {
+  auto writer_func = [&](int ) {
       std::random_device rd;
       std::mt19937 gen(rd());
       std::uniform_int_distribution<> dis(1, 1000);
@@ -55,14 +54,14 @@ void concurrent_insert_scan_example() {
   };
   
   // Reader threads continuously scan the list
-  auto reader_func = [&](int thread_id) {
+  auto reader_func = [&](int) {
     while (!stop_flag.load()) {
       int count = 0;
       auto now = std::chrono::steady_clock::now();
           
       for (const auto& node : list) {
-        auto age = std::chrono::duration_cast<std::chrono::milliseconds>(
-        now - node.timestamp).count();
+        auto age = std::chrono::duration_cast<std::chrono::milliseconds>(now - node.timestamp).count();
+        (void)age;
         count++;
       }
           
@@ -98,7 +97,7 @@ void concurrent_insert_scan_example() {
 
 // Example 2: Concurrent insert-after and remove
 void concurrent_insert_after_remove_example() {
-  Lock_free_list<TimestampNode> list;
+  ut::Lock_free_list<TimestampNode> list;
   std::atomic<bool> stop_flag{false};
   
   // Initialize list with some nodes
@@ -130,7 +129,7 @@ void concurrent_insert_after_remove_example() {
   };
   
   // Thread function for remove operations
-  auto remover_func = [&](int thread_id) {
+  auto remover_func = [&](int ) {
    std::random_device rd;
    std::mt19937 gen(rd());
       
@@ -160,7 +159,7 @@ void concurrent_insert_after_remove_example() {
       while (!stop_flag.load()) {
           // Validate list integrity
           auto it = list.begin();
-          Node* prev = nullptr;
+	  ut::Node* prev = nullptr;
           
           while (it != list.end()) {
               auto* current = &(*it);
@@ -202,7 +201,7 @@ void concurrent_insert_after_remove_example() {
 
 // Example 3: Mixed operations with periodic snapshots
 void mixed_operations_example() {
-  Lock_free_list<TimestampNode> list;
+  ut::Lock_free_list<TimestampNode> list;
   std::atomic<bool> stop_flag{false};
   std::atomic<int> operation_count{0};
   

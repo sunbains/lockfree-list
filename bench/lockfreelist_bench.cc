@@ -3,13 +3,13 @@
 #include <vector>
 #include <random>
 
-#include "lockfreelist.h"
+#include "tests/timestamp_node.h"
 
 // Single-threaded push_front benchmark
 static void BM_PushFront(benchmark::State& state) {
     for (auto _ : state) {
         state.PauseTiming();
-        Lock_free_list<DataNode> list;
+        ut::Lock_free_list<DataNode> list;
         std::vector<std::unique_ptr<DataNode>> nodes;
         nodes.reserve(state.range(0));
         state.ResumeTiming();
@@ -26,7 +26,7 @@ BENCHMARK(BM_PushFront)->Range(8, 8<<10);
 static void BM_PushFront_MultiThreaded(benchmark::State& state) {
     for (auto _ : state) {
         state.PauseTiming();
-        Lock_free_list<DataNode> list;
+        ut::Lock_free_list<DataNode> list;
         std::vector<std::unique_ptr<DataNode>> nodes;
         nodes.reserve(state.range(0));
         const int num_threads = state.range(1);
@@ -55,7 +55,7 @@ BENCHMARK(BM_PushFront_MultiThreaded)
 static void BM_MixedOperations(benchmark::State& state) {
     for (auto _ : state) {
         state.PauseTiming();
-        Lock_free_list<DataNode> list;
+        ut::Lock_free_list<DataNode> list;
         std::vector<std::unique_ptr<DataNode>> nodes;
         nodes.reserve(state.range(0));
         std::random_device rd;
@@ -83,7 +83,7 @@ BENCHMARK(BM_MixedOperations)->Range(8, 8<<10);
 static void BM_HighContention(benchmark::State& state) {
     for (auto _ : state) {
         state.PauseTiming();
-        Lock_free_list<DataNode> list;
+        ut::Lock_free_list<DataNode> list;
         const int num_threads = state.range(0);
         const int operations_per_thread = 1000;
         state.ResumeTiming();
@@ -119,7 +119,7 @@ BENCHMARK(BM_HighContention)->Range(1, 32);
 static void BM_PushBack(benchmark::State& state) {
     for (auto _ : state) {
         state.PauseTiming();
-        Lock_free_list<DataNode> list;
+        ut::Lock_free_list<DataNode> list;
         std::vector<std::unique_ptr<DataNode>> nodes;
         nodes.reserve(state.range(0));
         state.ResumeTiming();
@@ -136,7 +136,7 @@ BENCHMARK(BM_PushBack)->Range(8, 8<<10);
 static void BM_PushBack_MultiThreaded(benchmark::State& state) {
     for (auto _ : state) {
         state.PauseTiming();
-        Lock_free_list<DataNode> list;
+        ut::Lock_free_list<DataNode> list;
         std::vector<std::unique_ptr<DataNode>> nodes;
         nodes.reserve(state.range(0));
         const int num_threads = state.range(1);
@@ -165,7 +165,7 @@ BENCHMARK(BM_PushBack_MultiThreaded)
 static void BM_Find(benchmark::State& state) {
     for (auto _ : state) {
         state.PauseTiming();
-        Lock_free_list<DataNode> list;
+        ut::Lock_free_list<DataNode> list;
         std::vector<std::unique_ptr<DataNode>> nodes;
         const int size = state.range(0);
         nodes.reserve(size);
@@ -192,7 +192,7 @@ BENCHMARK(BM_Find)->Range(8, 8<<10);
 static void BM_InsertAfter(benchmark::State& state) {
     for (auto _ : state) {
         state.PauseTiming();
-        Lock_free_list<DataNode> list;
+        ut::Lock_free_list<DataNode> list;
         std::vector<std::unique_ptr<DataNode>> nodes;
         nodes.reserve(state.range(0) + 1);
         
@@ -216,7 +216,7 @@ BENCHMARK(BM_InsertAfter)->Range(8, 8<<10);
 static void BM_ConcurrentMixedOps(benchmark::State& state) {
     for (auto _ : state) {
         state.PauseTiming();
-        Lock_free_list<DataNode> list;
+        ut::Lock_free_list<DataNode> list;
         const int num_threads = state.range(0);
         const int operations_per_thread = 1000;
         state.ResumeTiming();

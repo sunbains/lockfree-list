@@ -6,19 +6,18 @@
 #include <sstream>
 #include <iomanip>
 
-#include "timestamp_node.h"
-
+#include "tests/timestamp_node.h"
 
 // Utility function to populate list
 template<typename T>
-void populate_list(Lock_free_list<T>& list, size_t size) {
+void populate_list(ut::Lock_free_list<T>& list, size_t size) {
     for (size_t i = 0; i < size; ++i) {
         list.push_back(new T(static_cast<int>(i)));
     }
 }
 
 template<typename T>
-void free_list(Lock_free_list<T>& list) {
+void free_list(ut::Lock_free_list<T>& list) {
     for (auto it = list.begin(); it != list.end();) {
         list.remove(&(*it));
         delete &(*it);
@@ -29,7 +28,7 @@ void free_list(Lock_free_list<T>& list) {
 
 // Basic forward iteration
 static void BM_IteratorForward(benchmark::State& state) {
-    Lock_free_list<TimestampNode> list;
+    ut::Lock_free_list<TimestampNode> list;
     populate_list(list, state.range(0));
     
     for (auto _ : state) {
@@ -48,14 +47,13 @@ BENCHMARK(BM_IteratorForward)
 
 #if 0
 // Reverse iteration
-// Note:: This test makes no sense, it should be rend() and rbegin()
 static void BM_IteratorReverse(benchmark::State& state) {
-    Lock_free_list<TimestampNode> list;
+    ut::Lock_free_list<TimestampNode> list;
     populate_list(list, state.range(0));
     
     for (auto _ : state) {
         int sum = 0;
-        for (auto it = list.end(); it != list.begin(); --it) {
+        for (auto it = list.rbegin(); it != list.rend(); --it) {
             benchmark::DoNotOptimize(sum += it->m_value);
         }
         benchmark::ClobberMemory();
@@ -70,11 +68,11 @@ BENCHMARK(BM_IteratorReverse)
 
 // Random access using iterators
 static void BM_IteratorRandomAccess(benchmark::State& state) {
-    Lock_free_list<TimestampNode> list;
+    ut::Lock_free_list<TimestampNode> list;
     populate_list(list, state.range(0));
     
     std::vector<size_t> indices;
-    for (size_t i = 0; i < state.range(0); ++i) {
+    for (int i{}; i < state.range(0); ++i) {
         indices.push_back(i);
     }
     std::random_device rd;
@@ -99,7 +97,7 @@ BENCHMARK(BM_IteratorRandomAccess)
 
 // Concurrent iteration with modifications
 static void BM_IteratorConcurrentModification(benchmark::State& state) {
-    Lock_free_list<TimestampNode> list;
+    ut::Lock_free_list<TimestampNode> list;
     populate_list(list, state.range(0));
     
     std::atomic<bool> stop_flag{false};
@@ -156,7 +154,7 @@ BENCHMARK(BM_IteratorConcurrentModification)
 
 // Multiple concurrent iterators
 static void BM_MultipleConcurrentIterators(benchmark::State& state) {
-    Lock_free_list<TimestampNode> list;
+    ut::Lock_free_list<TimestampNode> list;
     populate_list(list, state.range(0));
     
     const int num_threads = state.range(1);
@@ -204,7 +202,7 @@ BENCHMARK(BM_MultipleConcurrentIterators)
 
 // Iterator creation and destruction overhead
 static void BM_IteratorCreation(benchmark::State& state) {
-    Lock_free_list<TimestampNode> list;
+    ut::Lock_free_list<TimestampNode> list;
     populate_list(list, state.range(0));
     
     for (auto _ : state) {
@@ -221,7 +219,7 @@ BENCHMARK(BM_IteratorCreation)
 
 // Compare iterator vs direct pointer traversal
 static void BM_IteratorVsPointer(benchmark::State& state) {
-    Lock_free_list<TimestampNode> list;
+    ut::Lock_free_list<TimestampNode> list;
     populate_list(list, state.range(0));
     
     if (state.thread_index() == 0) {
@@ -240,8 +238,8 @@ static void BM_IteratorVsPointer(benchmark::State& state) {
             auto current = list.m_head.load(std::memory_order_acquire);
 
             while (current != nullptr) {
-                benchmark::DoNotOptimize(sum += static_cast<TimestampNode*>((Node*)current)->m_value);
-                current = ((Node*)current)->m_next.load(std::memory_order_acquire);
+                benchmark::DoNotOptimize(sum += static_cast<TimestampNode*>((ut::Node*)current)->m_value);
+                current = ((ut::Node*)current)->m_next.load(std::memory_order_acquire);
             }
             benchmark::ClobberMemory();
         }
@@ -256,7 +254,7 @@ BENCHMARK(BM_IteratorVsPointer)
 
 // Find with iterator vs find method
 static void BM_FindComparison(benchmark::State& state) {
-    Lock_free_list<TimestampNode> list;
+    ut::Lock_free_list<TimestampNode> list;
     populate_list(list, state.range(0));
     
     const int target_value = state.range(0) / 2;
@@ -287,7 +285,7 @@ BENCHMARK(BM_FindComparison)
 
 // Cache-friendly iteration pattern
 static void BM_CacheFriendlyIteration(benchmark::State& state) {
-    Lock_free_list<TimestampNode> list;
+    ut::Lock_free_list<TimestampNode> list;
     populate_list(list, state.range(0));
     
     if (state.thread_index() == 0) {
@@ -329,7 +327,7 @@ BENCHMARK(BM_CacheFriendlyIteration)
 BENCHMARK_MAIN();
 
 static void BM_BatchOperations(benchmark::State& state) {
-    Lock_free_list<TimestampNode> list;
+    ut::Lock_free_list<TimestampNode> list;
     const size_t batch_size = state.range(1);
 
     for (auto _ : state) {
@@ -365,7 +363,7 @@ BENCHMARK(BM_BatchOperations)
 
 // Sliding window using iterators
 static void BM_SlidingWindow(benchmark::State& state) {
-    Lock_free_list<TimestampNode> list;
+    ut::Lock_free_list<TimestampNode> list;
     const size_t window_size = state.range(1);
 
     for (auto _ : state) {
@@ -405,7 +403,7 @@ BENCHMARK(BM_SlidingWindow)
 
 // Iterator stability under high contention
 static void BM_IteratorStability(benchmark::State& state) {
-    Lock_free_list<TimestampNode> list;
+    ut::Lock_free_list<TimestampNode> list;
     std::atomic<bool> stop_flag{false};
 
     for (auto _ : state) {
@@ -476,7 +474,7 @@ BENCHMARK(BM_IteratorStability)
 
 // Iterator with predicate filtering
 static void BM_IteratorFiltering(benchmark::State& state) {
-    Lock_free_list<TimestampNode> list;
+    ut::Lock_free_list<TimestampNode> list;
 
     for (auto _ : state) {
         state.PauseTiming();
@@ -517,7 +515,7 @@ BENCHMARK(BM_IteratorFiltering)
 
 // Iterator with distance calculation
 static void BM_IteratorDistance(benchmark::State& state) {
-    Lock_free_list<TimestampNode> list;
+    ut::Lock_free_list<TimestampNode> list;
 
     for (auto _ : state) {
         state.PauseTiming();
@@ -573,7 +571,7 @@ BENCHMARK(BM_IteratorDistance)
 
 // Benchmark for iterator reuse vs creation
 static void BM_IteratorReuse(benchmark::State& state) {
-    Lock_free_list<TimestampNode> list;
+    ut::Lock_free_list<TimestampNode> list;
 
     for (auto _ : state) {
         state.PauseTiming();

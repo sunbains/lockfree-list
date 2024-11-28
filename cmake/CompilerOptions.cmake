@@ -1,0 +1,9 @@
+add_compile_options(
+  -Wall
+  -Wextra
+  -Wpedantic
+  -Werror
+  -fno-omit-frame-pointer
+  $<$<CONFIG:Debug>:-fsanitize=address,undefined>
+  $<$<CONFIG:Debug>:-fno-optimize-sibling-calls>
+)
