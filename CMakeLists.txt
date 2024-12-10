@@ -9,6 +9,10 @@ set(EXECUTABLE_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/bin)
 
 include(cmake/CompilerOptions.cmake)
 
+option(BUILD_TESTING "Build tests" OFF)
+
+if(BUILD_TESTING)
+
 # Enable testing
 enable_testing()
 
@@ -106,3 +110,5 @@ target_include_directories(mt
   PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+
+endif()
